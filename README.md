@@ -14,14 +14,14 @@ algunas carpetas/secciones no las usaremos aun, la estructura debera ser:
 	            |- archive/
 		            |- reduccion_no_en_uso.ipynb
 		            ...
-		    |- HITO/
-		        |- HITO1
+	        |- HITO/
+	            |- HITO1
 		            |- entrega.ipynb
 		            |- entrega.pdf
 		            ...
 		        |- HITO2
 		            ...
-		        ...
+	            ...
 	        |- projectname/
 	            |- projectname/
 		            |- __init__.py
