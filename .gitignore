@@ -1,3 +1,9 @@
+# ignore
+data/PAULA
+data/processed
+data/cleared
+
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
