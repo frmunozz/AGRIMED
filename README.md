@@ -67,7 +67,7 @@ Si tienen alguna duda sobre esta estructura, pueden ver este enlace que la detal
 para ello les dejo este enlace que los detalla bien: https://jameschambers.co/writing/git-team-workflow-cheatsheet/.
 Si mantenemos todo moodular, no caeremos en estos problemas hasta la etapa final.
 
-* Como concejo, para evitar problemas muy serios, SIEMPRE hagan
+* Como consejo, para evitar problemas muy serios, SIEMPRE hagan
 
         git pull
         
