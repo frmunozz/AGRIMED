@@ -18,23 +18,26 @@ class JoinFiles(object):
 
     def join_station(self, folder):
         dfs = []
+        station = self.get_station(folder)
         outdir = "{}/{}".format(self.new_path, self.region)
+        # outdir = outdir.replace("Ñ", "NH")
         if not os.path.exists(outdir):
             os.makedirs(outdir)
-        station = self.get_station(folder)
         outfile = "{}/{}.csv".format(outdir, station)
-        print("creating:", outfile)
+        # outfile = outfile.replace("Ñ", "NH")
         for file in glob.glob(folder + "/*"):
             file = file.replace("\\", "/")
             if ".csv" in file:
-                df = pd.read_csv(file, sep='\t', lineterminator='\r')
+                df = pd.read_csv(file, sep='\t', lineterminator='\r', decimal=",")
             else:
                 df = pd.read_excel(file)
             dfs.append(df)
+        if len(dfs) > 0:
+            print("creating:", outfile)
             final_df = pd.concat(dfs, ignore_index=True)
             final_df = final_df.sort_values(by=['Codigo', 'Fecha', 'Hora'])
             final_df = final_df.reset_index(drop=True)
-            final_df.to_csv(outfile)
+            final_df.to_csv(outfile, index=False)
 
     def process_region(self, path):
         path = path.replace("\\", "/")

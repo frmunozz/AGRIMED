@@ -52,7 +52,7 @@ class BadFiles(object):
         elif not df[df["Humedad"] < 0].empty:
             error_type = "INCONSISTENCY.NegHum"
         elif not df[df["Presion Atmosferica"] <= 0].empty:
-            error_type = "INCONCISTENCY.ZeroOrNegPAtm"
+            error_type = "INCONSISTENCY.ZeroOrNegPAtm"
 
         if error_type is not None:
             self.curr_error = error_type
@@ -67,32 +67,39 @@ class BadFiles(object):
             self._update()
         return res
 
-    def open_excel(self):
+    def open_file(self):
         df = None
-        try:
-            df = pd.read_excel(self.curr_file)
-        except:
-            self.curr_error = "ERROR.file"
-            self._update()
+        if ".csv" in self.curr_file:
+            df = pd.read_csv(self.curr_file, sep='\t', lineterminator='\r', decimal=",")
+        else:
+            try:
+                df = pd.read_excel(self.curr_file)
+            except:
+                self.curr_error = "ERROR.file"
+                self._update()
         return df
+
+    def check_errors(self, df):
+        if df is not None:
+            if self.bad_header(df):
+                return True
+            elif self.is_empty(df):
+                return True
+            elif self.has_nan(df):
+                return True
+            elif self.has_bad_data(df):
+                return True
+        else:
+            return True
+        return False
 
     def check_excel(self, file):
         self.counter += 1
         file = file.replace("\\", "/")
         self.curr_file = file
         self.curr_error = None
-        df = self.open_excel()
-        res = df is None
-        if df is not None:
-            if self.bad_header(df):
-                res = True
-            elif self.is_empty(df):
-                res = True
-            elif self.has_nan(df):
-                res = True
-            elif self.has_bad_data(df):
-                res = True
-
+        df = self.open_file()
+        res = self.check_errors(df)
         if res:
             print("%s.%s" % (self.curr_error, self.curr_file))
             self.bad_station = res
@@ -107,7 +114,7 @@ class BadFiles(object):
         for folder in glob.glob(path + "/*"):
             dfs = []
             files = []
-            for file in glob.glob(folder + "/*.xls"):
+            for file in glob.glob(folder + "/*"):
                 dfs.append(self.check_excel(file))
                 files.append(file)
 
@@ -125,6 +132,37 @@ class BadFiles(object):
         for path in glob.glob(self.raw_folder + "/*"):
             if all(x not in path for x in ["FDF semestre 2 2010", "DE MALLANES Y LA ANTARTIDA"]):
                 self.check_region(path)
+
+    def recheck_all(self):
+        for path in glob.glob(self.raw_folder + "/*"):
+            self.recheck_region(path)
+
+    def recheck_region(self, path):
+        path = path.replace("\\", "/")
+        for station in glob.glob(path + "/*.csv"):
+            df = self.recheck_csv(station)
+            if not self.bad_station:
+                if self.check_not_unique_code([df]):
+                    if station not in self.files:
+                        self.files.append(station)
+                        self.errors.append(self.curr_error)
+                    print("%s.%s" % (self.curr_error, station))
+            self.bad_station = False
+
+    def recheck_csv(self, file):
+        self.counter += 1
+        file = file.replace("\\", "/")
+        self.curr_file = file
+        self.curr_error = None
+        df = pd.read_csv(file)
+        res = self.check_errors(df)
+        if res:
+            print("%s.%s" % (self.curr_error, self.curr_file))
+            self.bad_station = res
+
+        self.curr_file = None
+        self.curr_error = None
+        return df
 
     def check_not_unique_code(self, dfs):
         codigo = None
