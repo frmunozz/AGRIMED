@@ -9,6 +9,7 @@ import logging
 import datetime
 import pandas as pd
 from project.model import Predictor, DataHandler
+import matplotlib.pyplot as plt
 
 
 class TextHandler(logging.Handler):
@@ -59,7 +60,6 @@ class View(tk.Toplevel):
         self.prob_entry = None
         self.date_entry = None
         self.asnm_entry = None
-        self.lat_entry = None
         self.search_btn = None
         self.file_entry = None
         self.protocol('WM_DELETE_WINDOW', self.master.destroy)
@@ -80,7 +80,7 @@ class View(tk.Toplevel):
         text_handler = TextHandler(st)
 
         logging.basicConfig(filename="predictor.log",
-                            level=logging.DEBUG,
+                            level=20,
                             format='%(asctime)s - %(levelname)s - %(message)s')
         self.logger = logging.getLogger()
         self.logger.addHandler(text_handler)
@@ -149,17 +149,12 @@ class View(tk.Toplevel):
         lbl33 = tk.Label(self, text="(0.0 - 1.0)", font=("Arial", "11"))
         lbl33.place(in_=self.prob_entry, relx=1, rely=0.5, anchor="w")
 
-        # ASNM and latitude input
+        # ASNM input
         lbl4 = tk.Label(self, text="Altura sobre el nivel del mar (metros):",  font=('Arial', '11'))
         lbl4.place(in_=self.chk, x=10, rely=2)
         self.asnm_entry = tk.Entry(self)
         self.asnm_entry.place(in_=lbl4, relx=1, rely=0.5, anchor="w", width=100)
 
-        # latitude input
-        lbl5 = tk.Label(self, text="Latitud de la estación (decimal):",  font=('Arial', '11'))
-        lbl5.place(in_=self.chk, x=10, rely=3)
-        self.lat_entry = tk.Entry(self)
-        self.lat_entry.place(in_=lbl5, relx=1, rely=0.5, anchor="w", width=100)
         return lbl
 
     def start_button(self, **kwargs):
@@ -228,32 +223,30 @@ class Controller:
         try:
             prob = float(prob)
             if not 0.0 < prob < 1.0:
-                logging.error(">> La probabilidad ingresada '%s' esta fuera del rango [0,1]" % str(prob))
+                self.view.logger.error(">> La probabilidad ingresada '%s' esta fuera del rango [0,1]" % str(prob))
             else:
-                logging.info("> probabilidad de helada aceptable: %s" % str(prob))
+                self.view.logger.info("> probabilidad de helada aceptable: %s" % str(prob))
         except ValueError:
-            logging.error(">> La probabilidad ingresada '%s' no es un valor valido" % str(prob))
+            self.view.logger.error(">> La probabilidad ingresada '%s' no es un valor valido" % str(prob))
         finally:
             return prob
 
-    def check_asnm_lat(self):
+    def check_asnm(self):
         asnm = self.view.asnm_entry.get()
-        lat = self.view.lat_entry.get()
         try:
             asnm = int(asnm)
-            lat = float(lat)
         except ValueError:
-            self.view.logger.error("datos asnm: '%s' o lat: '%s' no validos" % (str(asnm), str(lat)))
-        return asnm, lat
+            self.view.logger.error("dato asnm: '%s'no valido" % str(asnm))
+        return asnm
 
     def check_date(self):
         date = self.view.date_entry.get()
         ddtt = None
         try:
             ddtt = datetime.datetime.strptime(date, '%d/%m/%Y')
-            logging.info("> Fecha de datos: %s" % date)
+            self.view.logger.info("> Fecha de datos: %s" % date)
         except ValueError:
-            logging.error(">> La fecha '%s' no cumple el formato" % date)
+            self.view.logger.error(">> La fecha '%s' no cumple el formato" % date)
         finally:
             return ddtt
 
@@ -273,10 +266,10 @@ class Controller:
         hier = self.check_hierarchical_model()
         if hier:
             prob = self.check_prob_threshold()
-            asnm, lat = self.check_asnm_lat()
+            asnm = self.check_asnm()
         else:
             prob = 1
-            asnm, lat = 0, 0
+            asnm = 0
         if 40 in self.view.logger._cache and self.view.logger._cache[40]:
             self.end_program()
             return
@@ -288,7 +281,7 @@ class Controller:
             self.end_program()
             return
         df_handler = DataHandler(df)
-        input_ = df_handler.prepare_for_classifier(ddtt, asnm, lat)
+        input_ = df_handler.prepare_for_classifier(ddtt, asnm)
         if input_ is None:
             self.view.logger.error("los datos recibidos no son validos o son insuficientes")
         if 40 in self.view.logger._cache and self.view.logger._cache[40]:
@@ -297,19 +290,27 @@ class Controller:
 
         # start prediction
         self.view.logger.info("Iniciando Prediccion ...")
-        # is_frost, pred_probs = self.model.predict_classifier(input_, threshold=prob)
-        if 40 in self.view.logger._cache and self.view.logger._cache[40]:
-            self.end_program()
-            return
+        is_frost, pred_probs = self.model.predict_classifier(input_, threshold=prob)
+        # import pdb
+        # pdb.set_trace()
+        input2_ = df_handler.prepare_for_lst(ddtt)
+        lstm_pred = self.model.predict_curve(input2_)
+        print(lstm_pred)
 
         # give final result (answer yes or no to frost and time/temp of minimum)
         self.view.logger.info("Resultados: ")
-        # self.view.logger.info("            es helada: %s" % str(is_frost))
-        # self.view.logger.info("            con probabilidad: %s" % str(pred_probs[1]))
+        if hier:
+            self.view.logger.info("            es helada: %s" % str(is_frost))
+            self.view.logger.info("            con probabilidad: %s" % str(pred_probs[1]))
+        if hier and is_frost or not hier:
+            self.view.logger.info(" graficando y guardando curva ....")
+            self.model.save_curve(ddtt, lstm_pred)
+            self.model.plot_curve(lstm_pred)
         self.end_program()
 
     def end_program(self):
         self.view.logger.info("Programa terminado <\n------------------------------------------")
+        self.view.logger._cache = {}
 
     def open_file(self):
         # open file with pandas
@@ -320,7 +321,7 @@ class Controller:
             else:
                 df = pd.read_excel(self.file)
         except:
-            logging.error("Archivo '%s' no cumple con el formato pedido" % self.file)
+            self.view.logger.error("Archivo '%s' no cumple con el formato pedido" % self.file)
         return df
 
 

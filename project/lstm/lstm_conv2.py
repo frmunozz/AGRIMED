@@ -118,13 +118,15 @@ def predict(df, red, device='cpu'):
     # Las columnas deben quedar así ['temp', 'hum', 'vel.vin', 'precip', 'rad.sol', 'p.atm', 'Dia', 'Minuto']
     
     # Se crea columna tiempo 
-    df['Tiempo'] = pd.to_datetime(df.datetimehrs)
+    # df['Tiempo'] = pd.to_datetime(df.datetimehrs)
     # Se eliminan las columnas que no se utilizan
-    df2=df.drop(['code', 'date','time', 'dir.vin', 'datetimehrs', 'date+14hrs'], axis=1)
+    # df2=df.drop(['code', 'date','time', 'dir.vin', 'datetimehrs', 'date+14hrs'], axis=1)
     # Se agregan dias y minutos y se elimina la columna tiempo
-    df2['Dia']=df2['Tiempo'].dt.strftime('%j').astype(int)
-    df2['Minuto']=df2['Tiempo'].dt.hour*60+df['Tiempo'].dt.minute
-    df2=df2.drop(['Tiempo'], axis=1)
+    # import pdb
+    # pdb.set_trace()
+    df['Dia']=df['Tiempo'].dt.strftime('%j').astype(int)
+    df['Minuto']=df['Tiempo'].dt.hour*60+df['Tiempo'].dt.minute
+    df2=df.drop(['Tiempo'], axis=1)
     
     #Conversión a numpy
     array=df2.to_numpy(dtype=float)
