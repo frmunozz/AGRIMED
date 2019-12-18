@@ -31,6 +31,7 @@ _VALID_KWARGS = {"input_dim": None,
                  "batch_size": 256,
                  "validation_split": 0.2,
                  "shuffle": True,
+                 "out_activation": "linear",
                  }
 
 # coefficient of determination (R^2) for regression  (only for Keras tensors)
@@ -65,11 +66,14 @@ class Regressor(object):
         else:
             return getattr(self, key)
 
-    def set(**kwargs):
+    def set(self, **kwargs):
         """ set the kwargs """
         self.kwargs = validate_keys(kwargs, self.kwargs)
+
+    # def reset_weights(self):
+    #     self["model"].
         
-    def build(self):
+    def build(self, out_layer_activation="linear"):
         """ build the NN model using the set kwargs as configurations """
         if self['input_dim'] is None or self['output_dim'] is None:
             # if no inputs/outputs dim are defined, we cannot build the NN
@@ -82,14 +86,15 @@ class Regressor(object):
             model.add(Dense(self["layer_size"], activation='relu'))
             i -= 1
         # last layer has linear activator (i.e. no activator)
-        model.add(Dense(self["output_dim"], activation='linear'))
+        model.add(Dense(self["output_dim"], activation=self["out_activation"]))
         model.summary()
         # set loss, optimizer and metrics using the kwargs values
-        model.compile(loss=self["loss"], optimizer=self["optimizer"], metrics=self["metrics"])
+        model.compile(loss=self["loss"], optimizer=self["optimizer"], metrics=self["metrics"],
+                      weighted_metrics=self["metrics"])
         # save to model to kwargs
         self.kwargs["model"] = model
         
-    def fit(self, X_train, y_train, **kwargs):
+    def fit(self, X_train, y_train, verbose=1, class_weight=None, **kwargs):
         """ fit the NN using X_train as inputs and y_rain as expected outputs for the backpropagation """
         self.kwargs = validate_keys(kwargs, self.kwargs)
         # shuffle data, in order to obtain a trully random validation set
@@ -110,9 +115,9 @@ class Regressor(object):
             callbacks = [self.kwargs['early_stopping']]
         else:
             callbacks = None
-        history=self.kwargs["model"].fit(X_train,y_train, epochs=self["epochs"], 
+        history=self.kwargs["model"].fit(X_train,y_train, verbose=verbose, epochs=self["epochs"],
                                          validation_split=self["validation_split"],shuffle=self["shuffle"],
-                                         batch_size=self["batch_size"], callbacks=callbacks)
+                                         batch_size=self["batch_size"], callbacks=callbacks, class_weight=class_weight)
         # save the history callback dictionary in a kwarg parameter
         self.kwargs["history"] = history.history
         return history
@@ -125,10 +130,9 @@ class Regressor(object):
         self.kwargs["model"].save("./model/" + name + ".h5")
 
         # save history
-        json.dump(self.kwargs["history"], open("./model/" + name + "_history.json", "w"))
+        json.dump(repr(self.kwargs["history"]), open("./model/" + name + "_history.json", "w"))
         if verbose:
             print(" done!")
-    
         
     def load(self, name, custom_objects=None, verbose=True):
         """ load model and history from disk. It could need to define some custom objects (metrics rmse and r_square )"""
@@ -136,7 +140,7 @@ class Regressor(object):
             print("loading model from disk ...", end="")
         self.kwargs["model"] = load_model("./model/" + name + ".h5", custom_objects=custom_objects)
         # load history
-        self.kwargs["history"] = json.load(open("./model/" + name + "_history.json", 'r'))
+        self.kwargs["history"] = eval(json.load(open("./model/" + name + "_history.json", 'r')))
         if verbose:
             print(" done!")
         return self.kwargs["history"]
@@ -178,8 +182,10 @@ class Regressor(object):
     def plot_metrics(self, main_title="metricas", name=None):
         """ plot the metrics from the history callback """
         metrics = ["loss"]
-        metrics.extend(self["model"].__dict__["metrics"])
+        metrics.extend(self["model"].__dict__["_metrics"])
         fig, ax = plt.subplots(1, len(metrics), figsize=(16, 4))
+        if len(metrics) == 1:
+            ax = [ax]
         for i, k in enumerate(metrics):
             if not isinstance(k, str):
                 k = k.__name__
