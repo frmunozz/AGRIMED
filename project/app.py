@@ -288,7 +288,9 @@ class Controller:
             self.end_program()
             return
         df_handler = DataHandler(df)
-        # input_ = df_handler.prepare_for_classifier(ddtt, asnm, lat, logger=self.view.logger)
+        input_ = df_handler.prepare_for_classifier(ddtt, asnm, lat)
+        if input_ is None:
+            self.view.logger.error("los datos recibidos no son validos o son insuficientes")
         if 40 in self.view.logger._cache and self.view.logger._cache[40]:
             self.end_program()
             return
